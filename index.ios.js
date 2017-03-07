@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import MapView from 'react-native-maps';
 import haversine from 'haversine';
+import codePush from "react-native-code-push";
 
 export default class ride extends Component {
     constructor(props) {
@@ -144,4 +145,4 @@ const styles = StyleSheet.create({
     }
 });
 
-AppRegistry.registerComponent('ride', () => ride);
+AppRegistry.registerComponent('ride', () => codePush(ride));
