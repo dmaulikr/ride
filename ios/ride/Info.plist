@@ -51,5 +51,10 @@
     </dict>
     <key>CodePushDeploymentKey</key>
     <string>6KvtXcjcf9NVwuIU8caLiRRekQo5VkOaoGdqz</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
   </dict>
 </plist>

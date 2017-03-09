@@ -5,56 +5,34 @@
  */
 
 import React, { Component } from 'react';
-import {
-  AppRegistry,
-  StyleSheet,
-  Text,
-  View
-} from 'react-native';
+import { Alert, AppRegistry, StyleSheet, Text, View } from 'react-native';
+
 import MapView from 'react-native-maps';
+import SocketIOClient from 'socket.io-client';
 import haversine from 'haversine';
-import codePush from "react-native-code-push";
+import codePush from 'react-native-code-push';
+import shortid from 'shortid';
+
+
+const markerIDs = ['Marker1'];
 
 export default class ride extends Component {
     constructor(props) {
         super(props);
 
+        // Default State
         this.state = {
-            distanceTraveled: 0
+            distance: 0,
+            users: {}
         }
+
+        // Unique ID
+        this.userId = shortid.generate();
+        this.startSocketConn();
     }
 
     componentDidMount() {
-        this.watchID = navigator.geolocation.watchPosition((position) => {
-            this.setState({
-                position: position,
-                distanceTraveled: this.state.distanceTraveled + this.calcDistance(position.coords),
-            });
-
-            // Follow Map
-            if (position.coords) {
-                this.setState({
-                    region: {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        latitudeDelta: 0.10,
-                        longitudeDelta: 0.10
-                    }
-                })
-            }
-        },{
-            enableHighAccuracy: false,
-            timeout: 250,
-            maximumAge: 0
-        });
-    }
-
-    calcDistance(newLatLng) {
-        if (this.state.position) {
-            let prevLatLng = this.state.position.coords
-            return (haversine(prevLatLng, newLatLng, {unit: 'mile'}) || 0)
-        }
-        return 0;
+        this.startGPS();
     }
 
     render() {
@@ -64,18 +42,14 @@ export default class ride extends Component {
         return (
             <View style={{flex: 1}}>
                 <MapView ref={ref => {this.map = ref}} style={[styles.map]} region={this.state.region} onRegionChange={this.onRegionChange}>
-                    <MapView.Marker coordinate={this.state.position.coords}>
-                        <View style={[styles.circle]}>
-                            <Text style={[styles.markerText]}>HC</Text>
-                        </View>
-                    </MapView.Marker>
+                    {this.getMarkers()}
                 </MapView>
-                <View style={[styles.container]}>
+                <View style={[styles.container]} pointerEvents='box-none'>
                     <View style={[styles.details]}>
                         <Text style={styles.user}>HIMANSHU</Text>
                         <View style={styles.data}>
                             <Text style={styles.speed}>{Math.round(this.state.position.coords.speed * 2.23694)} MPH</Text>
-                            <Text style={styles.speed}>{this.state.distanceTraveled.toFixed(1)} MILES</Text>
+                            <Text style={styles.speed}>{this.state.distance.toFixed(1)} MILES</Text>
                         </View>
                     </View>
                 </View>
@@ -83,8 +57,75 @@ export default class ride extends Component {
         );
     }
 
+    ////////////////// Custom Functions
+
+    startSocketConn = () => {
+        window.navigator.userAgent = "react-native";
+        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
+        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
+        this.socket.on('connect', data => {
+            console.log('Socket connection started!');
+        });
+        this.socket.on('locations', users => {
+            this.setState({users: JSON.parse(users)})
+        });
+        this.socket.on('connect_error', err => {
+            console.log('Socket connection failed!', err);
+        })
+    }
+
+    startGPS = () => {
+        this.watchID = navigator.geolocation.watchPosition(
+            (position) => {
+                // Set new position
+                this.setState({
+                    position: position,
+                    distance: this.state.distance + this.calcDistance(position.coords),
+                });
+                this.map.fitToElements(true);
+
+                // Send position to server
+                this.socket.emit('location', JSON.stringify({
+                    id: this.userId,
+                    position: position,
+                    distance: this.state.distance
+                }))
+            },
+            (error) => {
+                Alert.alert('Failed to get location!')
+            },
+            {enableHighAccuracy: true, timeout: 5000, maximumAge: 0, distanceFilter: 0}
+        );
+    }
+
+    calcDistance = (newLatLng) => {
+        if (this.state.position) {
+            let prevLatLng = this.state.position.coords
+            return (haversine(prevLatLng, newLatLng, {unit: 'mile'}) || 0)
+        }
+        return 0;
+    }
+
     onRegionChange = (region) => {
         this.setState({region})
+    }
+
+    getMarkers = () => {
+        var markers = [];
+        Object.entries(this.state.users).forEach((data, key) => {
+            var serverId = data[0],
+                user = data[1],
+                mText = user.id === this.userId ? 'ME' : 'X';
+
+            markers.push(
+                <MapView.Marker key={key} coordinate={user.position.coords}>
+                    <View style={[styles.circle]}>
+                        <Text style={[styles.markerText]}>{mText}</Text>
+                    </View>
+                </MapView.Marker>
+            )
+        })
+        return markers;
     }
 }
 
