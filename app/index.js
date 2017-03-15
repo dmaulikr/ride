@@ -24,35 +24,33 @@ class App extends Component {
     }
 
     componentDidMount() {
-        this.startGPS();
+        this.loadMap();
+        // this.startGPS();
     }
 
     render() {
-        if (!this.state.position) {
-            return null;
-        }
         return (
             <View style={{flex: 1}}>
-                <MapView ref={ref => {this.map = ref}} style={[styles.map]}>
+                <MapView ref={ref => {this.map = ref}} style={[styles.map]} showsPointsOfInterest={false}>
+                    {this.state.initialPosition && !this.state.started &&
+                        <MapView.Marker coordinate={this.state.initialPosition.coords}>
+                            <View style={[styles.circle, styles.iCircle]}></View>
+                        </MapView.Marker>
+                    }
                     {this.getMarkers()}
                     <MapView.Polyline coordinates={this.state.path} strokeWidth={5} strokeColor={colors.user} />
                 </MapView>
                 <View style={[styles.container]} pointerEvents='box-none'>
-                    <View style={[styles.details]}>
-                        <Text style={styles.user}>HIMANSHU</Text>
-                        <View style={styles.data}>
-                            <Text style={styles.speed}>{Math.abs(Math.round(this.state.position.coords.speed * 2.23694))} MPH</Text>
-                            <Text style={styles.speed}>{this.state.distance.toFixed(1)} MILES</Text>
-                            <Text>{this.state.count}</Text>
-                        </View>
-                    </View>
+                    <Text style={[styles.debug]}>{this.state.count}</Text>
+                    {this.getBottom()}
                 </View>
             </View>
-        );
+        )
     }
 
     ////////////////// Custom Functions
 
+    //
     startSocketConn = () => {
         window.navigator.userAgent = "react-native";
         // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
@@ -68,32 +66,63 @@ class App extends Component {
         })
     }
 
-    startGPS = () => {
-        this.watchID = navigator.geolocation.watchPosition(
+    // Load Initial Map
+    loadMap = () => {
+        navigator.geolocation.watchPosition(
             (position) => {
-                // Set new position
-                this.setState({
-                    count: this.state.count + 1,
-                    position: position,
-                    distance: this.state.distance + this.calcDistance(position.coords),
-                    path: [...this.state.path, position.coords]
-                });
+                if (position.coords.accuracy > 100) {
+                    console.log('not accurate enough');
+                    return;
+                }
 
-                // Move Markers and stuff
-                this.map.fitToElements(true);
+                // Not in a group ride yet
+                if (!this.state.started) {
+                    this.setState({
+                        initialPosition: position,
+                        count: this.state.count + 1
+                    });
+                    this.map.animateToRegion({
+                        ...position.coords,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01
+                    })
+                } else {
+                    // Group Ride Started
+                    this.socket.emit('location', JSON.stringify({
+                        id: this.userId,
+                        position: position,
+                        distance: this.state.distance
+                    }));
+                    this.setState({
+                        position: position,
+                        count: this.state.count + 1,
+                        distance: this.state.distance + this.calcDistance(position.coords),
+                        path: [...this.state.path, position.coords]
+                    });
 
-                // Send position to server
-                this.socket.emit('location', JSON.stringify({
-                    id: this.userId,
-                    position: position,
-                    distance: this.state.distance
-                }))
+                    // Only self visible
+                    if (this.markers.length < 2) {
+                        this.map.animateToRegion({
+                            ...position.coords,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01
+                        })
+                    } else {
+                        this.map.fitToElements(true);
+                        // this.map.fitToCoordinates([this.state.position.coords], {edgePadding: {top: 25, left: 25, right: 25, bottom: 100}})
+                    }
+                }
             },
             (error) => {
-                Alert.alert('Failed to get location!')
+                console.log('Failed to get location!')
             },
             {enableHighAccuracy: true, timeout: 5000, maximumAge: 0, distanceFilter: 0}
         );
+    }
+
+    startGPS = () => {
+        console.log('started');
+        this.setState({started: true})
     }
 
     calcDistance = (newLatLng) => {
@@ -109,13 +138,13 @@ class App extends Component {
     }
 
     getMarkers = () => {
-        var markers = [];
+        this.markers = [];
         Object.entries(this.state.users).forEach((data, key) => {
             var serverId = data[0],
                 user = data[1],
                 mText = user.id === this.userId ? 'ME' : 'X';
 
-            markers.push(
+            this.markers.push(
                 <MapView.Marker key={key} coordinate={user.position.coords}>
                     <View style={[styles.circle]}>
                         <Text style={[styles.markerText]}>{mText}</Text>
@@ -123,14 +152,41 @@ class App extends Component {
                 </MapView.Marker>
             )
         })
-        return markers;
+        return this.markers;
+    }
+
+    getBottom = () => {
+        if (this.state.started && this.state.position) {
+            return (
+                <View style={[styles.details]}>
+                    <Text style={styles.user}>HIMANSHU</Text>
+                    <View style={styles.data}>
+                        <Text style={styles.speed}>{Math.abs(Math.round(this.state.position.coords.speed * 2.23694))} MPH</Text>
+                        <Text style={styles.speed}>{this.state.distance.toFixed(1)} MILES</Text>
+                    </View>
+                </View>
+            )
+        }
+
+        return (
+            <View style={[styles.details]}>
+                <Text style={styles.user} onPress={this.startGPS}>START</Text>
+            </View>
+        );
     }
 }
 
 const colors = {
-    user: '#9b59b6'
+    user: '#1abc9c'
 }
 const styles = StyleSheet.create({
+    debug: {
+        position: 'absolute',
+        top: 20,
+        right: 5,
+        color: '#000',
+        backgroundColor: 'transparent'
+    },
     container: {
         flex: 1,
         flexDirection: 'row',
@@ -141,9 +197,22 @@ const styles = StyleSheet.create({
         flex: 1,
         ...StyleSheet.absoluteFillObject
     },
+    iCircle: {
+        height: 20,
+        width: 20,
+        borderRadius: 20,
+        borderWidth: 3,
+        backgroundColor: '#3498db',
+        borderColor: '#FFF',
+        shadowColor: '#000',
+        shadowRadius: 4,
+        shadowOffset: {
+            width: 0,
+            height: 0
+        },
+        shadowOpacity: .5
+    },
     circle: {
-        // top: -10,
-        // left: -10,
         height: 35,
         width: 35,
         borderRadius: 35,
@@ -160,15 +229,13 @@ const styles = StyleSheet.create({
     },
     details: {
         flex: 1,
-        // width: 200,
         height: 120,
-        margin: 20,
-        // marginBottom: 50,
+        // margin: 20,
         padding: 15,
-        borderRadius: 5,
-        borderWidth: 2,
+        // borderRadius: 5,
+        borderTopWidth: 1,
         borderColor: colors.user,
-        backgroundColor: 'rgba(255,255,255,.90)',
+        backgroundColor: 'rgba(255,255,255,.95)',
         alignItems: 'center',
         justifyContent: 'center'
     },
@@ -179,8 +246,7 @@ const styles = StyleSheet.create({
     },
     user: {
         color: colors.user,
-        fontSize: 22,
-        marginBottom: 10
+        fontSize: 22
     },
     speed: {
         color: colors.user,

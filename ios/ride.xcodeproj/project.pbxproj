@@ -37,6 +37,7 @@
 		5E9157361DD0AC6A00FF2AA8 /* libRCTAnimation.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5E9157331DD0AC6500FF2AA8 /* libRCTAnimation.a */; };
 		7BE6F34D36D0475EA36F98B1 /* libCodePush.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FDB5A85BB9FF4290B7B6E97D /* libCodePush.a */; };
 		832341BD1AAA6AB300B99B32 /* libRCTText.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 832341B51AAA6A8300B99B32 /* libRCTText.a */; };
+		A3617C551E78FADA0012EC81 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A3617C541E78FADA0012EC81 /* MapKit.framework */; };
 		B7787C95FF82426D82B93CF1 /* libAirMaps.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 9808A14C2A4C4D10B417B9D4 /* libAirMaps.a */; };
 		F8BC13327F7A4BB58D795A66 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 374E281D0412498AB775BC40 /* libz.tbd */; };
 /* End PBXBuildFile section */
@@ -275,6 +276,7 @@
 		78C398B01ACF4ADC00677621 /* RCTLinking.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = RCTLinking.xcodeproj; path = "../node_modules/react-native/Libraries/LinkingIOS/RCTLinking.xcodeproj"; sourceTree = "<group>"; };
 		832341B01AAA6A8300B99B32 /* RCTText.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = RCTText.xcodeproj; path = "../node_modules/react-native/Libraries/Text/RCTText.xcodeproj"; sourceTree = "<group>"; };
 		9808A14C2A4C4D10B417B9D4 /* libAirMaps.a */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = archive.ar; path = libAirMaps.a; sourceTree = "<group>"; };
+		A3617C541E78FADA0012EC81 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
 		FABD0CC2C7764A8AB6E69963 /* CodePush.xcodeproj */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = "wrapper.pb-project"; name = CodePush.xcodeproj; path = "../node_modules/react-native-code-push/ios/CodePush.xcodeproj"; sourceTree = "<group>"; };
 		FDB5A85BB9FF4290B7B6E97D /* libCodePush.a */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = archive.ar; path = libCodePush.a; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -299,6 +301,7 @@
 				00C302E81ABCBA2D00DB3ED1 /* libRCTImage.a in Frameworks */,
 				133E29F31AD74F7200F7D852 /* libRCTLinking.a in Frameworks */,
 				00C302E91ABCBA2D00DB3ED1 /* libRCTNetwork.a in Frameworks */,
+				A3617C551E78FADA0012EC81 /* MapKit.framework in Frameworks */,
 				139105C61AF99C1200B5F7CC /* libRCTSettings.a in Frameworks */,
 				832341BD1AAA6AB300B99B32 /* libRCTText.a in Frameworks */,
 				00C302EA1ABCBA2D00DB3ED1 /* libRCTVibration.a in Frameworks */,
@@ -461,6 +464,7 @@
 		80754FF1AB684335873E1485 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A3617C541E78FADA0012EC81 /* MapKit.framework */,
 				374E281D0412498AB775BC40 /* libz.tbd */,
 			);
 			name = Frameworks;
@@ -626,6 +630,14 @@
 					13B07F861A680F5B00A75B9A = {
 						DevelopmentTeam = 2Q6KNL9US8;
 						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Maps.iOS = {
+								enabled = 1;
+							};
+						};
 					};
 					2D02E47A1E0B4A5D006451C7 = {
 						CreatedOnToolsVersion = 8.2.1;
@@ -1110,6 +1122,7 @@
 					"-ObjC",
 					"-lc++",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ride.app;
 				PRODUCT_NAME = ride;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -1134,6 +1147,7 @@
 					"-ObjC",
 					"-lc++",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ride.app;
 				PRODUCT_NAME = ride;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
