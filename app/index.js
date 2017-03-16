@@ -12,26 +12,31 @@ class App extends Component {
 
         // Default State
         this.state = {
+            started: false,
+            initialPosition: null,
+            position: null,
             distance: 0,
             users: {},
             count: 1,
-            path: []
+            path: [],
+            icons: [],
+            panning: false
         }
 
         // Unique ID
         this.userId = shortid.generate();
-        this.startSocketConn();
     }
 
     componentDidMount() {
+        this.startConn();
         this.loadMap();
-        // this.startGPS();
     }
 
+    // Render App
     render() {
         return (
             <View style={{flex: 1}}>
-                <MapView ref={ref => {this.map = ref}} style={[styles.map]} showsPointsOfInterest={false}>
+                <MapView ref={ref => {this.map = ref}} style={[styles.map]} showsPointsOfInterest={false} onPanDrag={this.panningMap}>
                     {this.state.initialPosition && !this.state.started &&
                         <MapView.Marker coordinate={this.state.initialPosition.coords}>
                             <View style={[styles.circle, styles.iCircle]}></View>
@@ -41,102 +46,15 @@ class App extends Component {
                     <MapView.Polyline coordinates={this.state.path} strokeWidth={5} strokeColor={colors.user} />
                 </MapView>
                 <View style={[styles.container]} pointerEvents='box-none'>
-                    <Text style={[styles.debug]}>{this.state.count}</Text>
+                    <Text style={[styles.debug]}>{this.state.count} {this.getAccuracy()}</Text>
+                    <Text style={[styles.debug, {bottom: 120, top: null}]} onPress={this.stopPanning}>Re-center</Text>
                     {this.getBottom()}
                 </View>
             </View>
         )
     }
 
-    ////////////////// Custom Functions
-
-    //
-    startSocketConn = () => {
-        window.navigator.userAgent = "react-native";
-        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
-        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
-        this.socket.on('connect', data => {
-            console.log('Socket connection started!');
-        });
-        this.socket.on('locations', users => {
-            this.setState({users: JSON.parse(users)})
-        });
-        this.socket.on('connect_error', err => {
-            console.log('Socket connection failed!', err);
-        })
-    }
-
-    // Load Initial Map
-    loadMap = () => {
-        navigator.geolocation.watchPosition(
-            (position) => {
-                if (position.coords.accuracy > 100) {
-                    console.log('not accurate enough');
-                    return;
-                }
-
-                // Not in a group ride yet
-                if (!this.state.started) {
-                    this.setState({
-                        initialPosition: position,
-                        count: this.state.count + 1
-                    });
-                    this.map.animateToRegion({
-                        ...position.coords,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01
-                    })
-                } else {
-                    // Group Ride Started
-                    this.socket.emit('location', JSON.stringify({
-                        id: this.userId,
-                        position: position,
-                        distance: this.state.distance
-                    }));
-                    this.setState({
-                        position: position,
-                        count: this.state.count + 1,
-                        distance: this.state.distance + this.calcDistance(position.coords),
-                        path: [...this.state.path, position.coords]
-                    });
-
-                    // Only self visible
-                    if (this.markers.length < 2) {
-                        this.map.animateToRegion({
-                            ...position.coords,
-                            latitudeDelta: 0.01,
-                            longitudeDelta: 0.01
-                        })
-                    } else {
-                        this.map.fitToElements(true);
-                        // this.map.fitToCoordinates([this.state.position.coords], {edgePadding: {top: 25, left: 25, right: 25, bottom: 100}})
-                    }
-                }
-            },
-            (error) => {
-                console.log('Failed to get location!')
-            },
-            {enableHighAccuracy: true, timeout: 5000, maximumAge: 0, distanceFilter: 0}
-        );
-    }
-
-    startGPS = () => {
-        console.log('started');
-        this.setState({started: true})
-    }
-
-    calcDistance = (newLatLng) => {
-        if (this.state.position) {
-            let prevLatLng = this.state.position.coords
-            return (haversine(prevLatLng, newLatLng, {unit: 'mile'}) || 0)
-        }
-        return 0;
-    }
-
-    onRegionChange = (region) => {
-        this.setState({region})
-    }
-
+    // Get Markers to Draw
     getMarkers = () => {
         this.markers = [];
         Object.entries(this.state.users).forEach((data, key) => {
@@ -155,11 +73,12 @@ class App extends Component {
         return this.markers;
     }
 
+    // Bottom View
     getBottom = () => {
         if (this.state.started && this.state.position) {
             return (
                 <View style={[styles.details]}>
-                    <Text style={styles.user}>HIMANSHU</Text>
+                    <Text style={[styles.user, {marginBottom: 10}]} onPress={this.stopRouting}>STOP</Text>
                     <View style={styles.data}>
                         <Text style={styles.speed}>{Math.abs(Math.round(this.state.position.coords.speed * 2.23694))} MPH</Text>
                         <Text style={styles.speed}>{this.state.distance.toFixed(1)} MILES</Text>
@@ -170,9 +89,140 @@ class App extends Component {
 
         return (
             <View style={[styles.details]}>
-                <Text style={styles.user} onPress={this.startGPS}>START</Text>
+                <Text style={styles.user} onPress={this.startRouting}>START</Text>
             </View>
         );
+    }
+
+    ////////////////// Custom Functions
+
+    // Connect to server
+    startConn = () => {
+        window.navigator.userAgent = "react-native";
+        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
+        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
+        this.socket.on('connect', data => {
+            console.log('Socket connection started!');
+        });
+        this.socket.on('locations', users => {
+            var userss = JSON.parse(users),
+                icons = [];
+
+            // Icon Lat Longs
+            Object.entries(userss).forEach((data, key) => {
+                var user = data[1];
+                icons.push(user.position.coords);
+                return;
+            });
+
+            this.setState({
+                icons: icons,
+                users: userss
+            });
+        });
+        this.socket.on('connect_error', err => {
+            console.log('Socket connection failed!', err);
+        })
+    }
+
+    // Load Initial Map
+    loadMap = () => {
+        navigator.geolocation.watchPosition(
+            (position) => {
+                // Not in a group ride yet
+                if (!this.state.started) {
+                    this.setState({
+                        initialPosition: position,
+                        count: this.state.count + 1
+                    });
+
+                    if (!this.state.panning) {
+                        this.map.animateToRegion({
+                            ...position.coords,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01
+                        })
+                    }
+                } else {
+                    // Group Ride Started
+                    this.socket.emit('location', JSON.stringify({
+                        id: this.userId,
+                        position: position,
+                        distance: this.state.distance
+                    }));
+                    this.setState({
+                        position: position,
+                        count: this.state.count + 1,
+                        distance: this.state.distance + this.calcDistance(position.coords),
+                        path: [...this.state.path, position.coords]
+                    });
+
+                    // Only self visible
+                    if (!this.state.panning) {
+                        if (this.markers.length < 2) {
+                            this.map.animateToRegion({
+                                ...position.coords,
+                                latitudeDelta: 0.01,
+                                longitudeDelta: 0.01
+                            })
+                        } else {
+                            this.map.fitToCoordinates(this.state.icons, {edgePadding: {top: 50, left: 30, right: 30, bottom: 130}})
+                        }
+                    }
+                }
+            },
+            (error) => {
+                console.log('Failed to get location!')
+            },
+            {enableHighAccuracy: true, timeout: 5000, maximumAge: 0, distanceFilter: 0}
+        );
+    }
+
+    // Join Group Ride
+    startRouting = () => {
+        this.setState({started: true})
+    }
+
+    // Drop Group Ride
+    stopRouting = () => {
+        this.setState({
+            started: false,
+            users: {},
+            path: [],
+            position: null
+        })
+    }
+
+    // Get GPS Accuracy
+    getAccuracy = () => {
+        if (this.state.position) {
+            return this.state.position.coords.accuracy;
+        }
+
+        if (this.state.initialPosition) {
+            return this.state.initialPosition.coords.accuracy;
+        }
+
+        return '';
+    }
+
+    // Calculate Distance between two lat longs
+    calcDistance = (newLatLng) => {
+        if (this.state.position) {
+            let prevLatLng = this.state.position.coords
+            return (haversine(prevLatLng, newLatLng, {unit: 'mile'}) || 0)
+        }
+        return 0;
+    }
+
+    // Map Move
+    panningMap = (region) => {
+        this.setState({panning: true})
+    }
+
+    // Follow users again
+    stopPanning = () => {
+        this.setState({panning: false})
     }
 }
 
