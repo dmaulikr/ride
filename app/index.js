@@ -67,7 +67,7 @@ class App extends Component {
                 </MapView>
                 <View style={[styles.container]} pointerEvents='box-none'>
                     <Text style={[styles.debug]}>{this.state.count} {this.getAccuracy()}</Text>
-                    <Text style={[styles.debug, {bottom: 120, top: null}]} onPress={this.stopPanning}>Re-center</Text>
+                    <Text style={[styles.debug, {left: 5, right: null}]} onPress={this.stopPanning}>RESUME</Text>
                     {this.getBottom()}
                 </View>
             </View>
