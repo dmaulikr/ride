@@ -109,7 +109,7 @@ class App extends Component {
 
     // Bottom View
     getBottom = () => {
-        if (this.state.started && this.state.position) {
+        if (this.state.started) {
             return (
                 <View style={[styles.details]}>
                     <Text style={[styles.user, {marginBottom: 10}]} onPress={this.stopRouting}>STOP</Text>
@@ -117,7 +117,7 @@ class App extends Component {
                         <Text style={styles.dataItem}>USER</Text>
                         <Text style={styles.dataItem}>SPEED</Text>
                         <Text style={styles.dataItem}>DISTANCE</Text>
-                        <Text style={styles.dataItem}>TIME</Text>
+                        <Text style={styles.dataItem}>DURATION</Text>
                     </View>
                     {this.getUserStats()}
                 </View>
@@ -133,6 +133,11 @@ class App extends Component {
 
     // User Stats
     getUserStats = () => {
+        if (!this.state.position) {
+            return null;
+        }
+
+        // Display Stats for Users
         var stats = [];
         Object.entries(this.state.users).forEach((data, key) => {
             var serverId = data[0],
@@ -244,13 +249,15 @@ class App extends Component {
 
     // Drop Group Ride
     stopRouting = () => {
-        this.setState(startState)
+        this.setState(startState);
+        clearInterval(this.interval);
     }
 
+    // Start timer
     startTimer = () => {
         var sec = 0;
         function pad ( val ) { return val > 9 ? val : "0" + val; }
-        this.timer = setInterval(() => {
+        this.interval = setInterval(() => {
             this.setState({
                 timer: parseInt(sec/60,10) + ':' + pad(++sec%60)
             })
