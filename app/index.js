@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import SocketIOClient from 'socket.io-client';
@@ -7,15 +7,6 @@ import haversine from 'haversine';
 import shortid from 'shortid';
 
 import { mapStyle } from 'app/map';
-
-const colors = [
-    '#2ecc71',
-    '#3498db',
-    '#9b59b6',
-    '#e74c3c',
-    '#34495e',
-    '#e67e22',
-];
 
 const regionUS = {
     latitude: 36.8282,
@@ -25,17 +16,24 @@ const regionUS = {
 };
 
 const startState = {
-    started: false,
     initialPosition: null,
+    panning: false,
+    showTraffic: false,
+    inGroup: false,
+
+    // while moving
+    started: false,
+    start: null,
     position: null,
     distance: 0,
     users: {},
     count: 1,
-    path: [],
-    icons: [],
-    timer: null,
-    panning: false,
-    showTraffic: false
+    path: [], // paths for current user
+    icons: [], // markers for all users
+    color: '#3498db', // user default color
+    group: 'knightrider',
+    pass: '2006',
+    name: 'Himanshu'
 };
 
 // App Starts Here
@@ -45,9 +43,6 @@ class App extends Component {
 
         // Default State
         this.state = startState;
-
-        // Unique ID
-        this.userId = shortid.generate();
     }
 
     componentDidMount() {
@@ -66,8 +61,7 @@ class App extends Component {
                     {this.getPaths()}
                 </MapView>
                 <View style={[styles.container]} pointerEvents='box-none'>
-                    <Text style={[styles.debug]}>{this.state.count} {this.getAccuracy()}</Text>
-                    <Text style={[styles.debug, {left: 5, right: null}]} onPress={this.stopPanning}>RESUME</Text>
+                    <Text style={[styles.debug]}>v101</Text>
                     {this.getBottom()}
                 </View>
             </View>
@@ -98,13 +92,17 @@ class App extends Component {
         return this.markers;
     }
 
-
+    // Get the path of all users
     getPaths = () => {
-        if (this.state.path.length) {
-            return <MapView.Polyline coordinates={this.state.path} strokeWidth={4} strokeColor={colors[0]} />
-        }
+        var paths = [];
+        Object.entries(this.state.users).forEach((data, key) => {
+            var serverId = data[0],
+                user = data[1];
 
-        return null;
+            paths.push(<MapView.Polyline key={key} coordinates={user.path} strokeWidth={4} strokeColor={user.color} />);
+        })
+
+        return paths;
     }
 
     // Bottom View
@@ -114,19 +112,26 @@ class App extends Component {
                 <View style={[styles.details]}>
                     <Text style={[styles.user, {marginBottom: 10}]} onPress={this.stopRouting}>STOP</Text>
                     <View style={[styles.data]}>
-                        <Text style={styles.dataItem}>USER</Text>
+                        <Text style={[styles.dataItem, styles.dataItemUser]}>USER</Text>
                         <Text style={styles.dataItem}>SPEED</Text>
                         <Text style={styles.dataItem}>DISTANCE</Text>
-                        <Text style={styles.dataItem}>DURATION</Text>
+                        <Text style={styles.dataItem}>TIME</Text>
                     </View>
                     {this.getUserStats()}
                 </View>
             )
         }
 
-        return (
+        // Resume Group Ride
+        if (this.state.inGroup) {
             <View style={[styles.details]}>
                 <Text style={styles.user} onPress={this.startRouting}>START</Text>
+            </View>
+        }
+
+        return (
+            <View style={[styles.details]}>
+                <Text style={styles.user} onPress={this.joinGroup}>JOIN GROUP</Text>
             </View>
         );
     }
@@ -145,10 +150,10 @@ class App extends Component {
 
             stats.push(
                 <View key={key} style={styles.data}>
-                    <Text style={[styles.dataItem]}>{key+1}</Text>
+                    <Text style={[styles.dataItem, styles.dataItemUser]}>{user.name}</Text>
                     <Text style={[styles.dataItem]}>{Math.abs(Math.ceil(user.position.coords.speed * 2.23694))}</Text>
                     <Text style={[styles.dataItem]}>{user.distance.toFixed(1)}</Text>
-                    <Text style={[styles.dataItem]}>{user.timer}</Text>
+                    <Text style={[styles.dataItem]}>{this.getTime(user.start)}</Text>
                 </View>
             )
         })
@@ -160,30 +165,76 @@ class App extends Component {
     // Connect to server
     startConn = () => {
         window.navigator.userAgent = "react-native";
-        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
-        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
+        this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
+        // this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
         this.socket.on('connect', data => {
             console.log('Socket connection started!');
         });
+
+        // Receiving Locations Updates
         this.socket.on('locations', users => {
-            var userss = JSON.parse(users),
+            var users = JSON.parse(users),
                 icons = [];
 
-            // Icon Lat Longs
-            Object.entries(userss).forEach((data, key) => {
+            // Where are all the markers (users) - lat / lon
+            Object.entries(users).forEach((data, key) => {
                 var user = data[1];
                 icons.push(user.position.coords);
-                return;
             });
 
             this.setState({
                 icons: icons,
-                users: userss
+                users: users
             });
         });
+
+        // Failed on password error
+        this.socket.on('group_join_failed', message => {
+            this.setState({
+                waiting: false
+            })
+            Alert.alert('Failed to join group, please check password!');
+        });
+
+        // Group Join Successful
+        this.socket.on('group_join_success', data => {
+            var data = JSON.parse(data);
+            this.setState({
+                color: data.color,
+                waiting: false
+            });
+            this.startRouting();
+        })
+
+        // Group Join Successful
+        this.socket.on('group_created', data => {
+            var data = JSON.parse(data);
+            this.setState({
+                color: data.color,
+                waiting: false
+            });
+            this.startRouting();
+        })
+
+        // Failed to connect!!
         this.socket.on('connect_error', err => {
             console.log('Socket connection failed!', err);
         })
+    }
+
+    // Initiate Group Join
+    joinGroup = () => {
+        if (this.socket.connected) {
+            this.setState({
+                waiting: true
+            })
+            this.socket.emit('join_group', JSON.stringify({
+                name: this.state.group,
+                pass: this.state.pass
+            }));
+        } else {
+            Alert.alert("Connection Error", "Failed to connect to server. Please check your internet connection and try again!");
+        }
     }
 
     // Load Initial Map
@@ -207,11 +258,13 @@ class App extends Component {
                 } else {
                     // Group Ride Started
                     this.socket.emit('location', JSON.stringify({
-                        id: this.userId,
-                        color: colors[0],
+                        name: this.state.name,
+                        start: this.state.start,
                         position: position,
-                        timer: this.state.timer,
-                        distance: this.state.distance
+                        color: this.state.color,
+                        group: this.state.group,
+                        distance: this.state.distance,
+                        path: [...this.state.path, position.coords]
                     }));
                     this.setState({
                         position: position,
@@ -243,25 +296,16 @@ class App extends Component {
 
     // Join Group Ride
     startRouting = () => {
-        this.setState({started: true})
-        this.startTimer();
+        this.setState({
+            started: true,
+            start: Date.now()
+        })
     }
 
     // Drop Group Ride
     stopRouting = () => {
+        this.socket.emit('stop_location', 'stop');
         this.setState(startState);
-        clearInterval(this.interval);
-    }
-
-    // Start timer
-    startTimer = () => {
-        var sec = 0;
-        function pad ( val ) { return val > 9 ? val : "0" + val; }
-        this.interval = setInterval(() => {
-            this.setState({
-                timer: parseInt(sec/60,10) + ':' + pad(++sec%60)
-            })
-        }, 1000);
     }
 
     // Get GPS Accuracy
@@ -277,6 +321,22 @@ class App extends Component {
         return '';
     }
 
+    // Get Time
+    getTime = (timestamp) => {
+        var diff = (Date.now() - timestamp) / 1000;
+        var secs = Math.round(diff % 60);
+        secs = secs == 60 ? 0 : secs;
+        secs = secs < 10 ? '0' + secs : secs;
+        diff = Math.floor(diff / 60);
+        var mins = Math.round(diff % 60);
+        diff = Math.floor(diff / 60);
+        var hours = Math.round(diff % 24);
+        if (hours > 0 && mins < 10) {
+            mins = '0' + mins;
+        }
+        return ((hours > 0 ? (hours+':') : '') + mins + ':' + secs);
+    }
+
     // Calculate Distance between two lat longs
     calcDistance = (newLatLng) => {
         if (this.state.position) {
@@ -288,7 +348,6 @@ class App extends Component {
 
     // Map Move
     panningMap = (region) => {
-        console.log('panning');
         this.setState({panning: true})
     }
 
@@ -301,8 +360,9 @@ class App extends Component {
 const styles = StyleSheet.create({
     debug: {
         position: 'absolute',
-        top: 20,
-        right: 5,
+        bottom: 15,
+        right: 15,
+        fontSize: 10,
         color: '#000',
         backgroundColor: 'transparent'
     },
@@ -324,21 +384,20 @@ const styles = StyleSheet.create({
         backgroundColor: '#ffffff',
         borderColor: '#3498db',
     },
-    markerText: {
-        color: colors[0],
-        fontSize: 14,
-        fontWeight: 'bold'
-    },
     details: {
         flex: 1,
         margin: 8,
         padding: 15,
         borderRadius: 5,
         borderWidth: 2,
-        borderColor: colors[0],
+        borderColor: '#3498db',
         backgroundColor: 'rgba(255,255,255,.95)',
         alignItems: 'center',
         justifyContent: 'center'
+    },
+    user: {
+        color: '#3498db',
+        fontSize: 22
     },
     data: {
         flexDirection: 'row',
@@ -352,13 +411,8 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 8
     },
-    userData: {
-        fontWeight: '300',
-        marginBottom: 4
-    },
-    user: {
-        color: colors[0],
-        fontSize: 22
+    dataItemUser: {
+        flex: 1.25
     },
 });
 
