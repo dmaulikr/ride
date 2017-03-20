@@ -165,8 +165,8 @@ class App extends Component {
     // Connect to server
     startConn = () => {
         window.navigator.userAgent = "react-native";
-        this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
-        // this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
+        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
+        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
         this.socket.on('connect', data => {
             console.log('Socket connection started!');
         });
