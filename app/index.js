@@ -111,9 +111,12 @@ class App extends Component {
         if (this.state.started) {
             return (
                 <View style={[styles.bottom]}>
-                    <Button textStyle={[styles.buttonText, {fontSize: 12}]} style={[styles.button, {width: 60, height: 22, borderWidth: 1, padding: 0, marginBottom: 0}]} onPress={this.stopRouting}>
-                        STOP
-                    </Button>
+                    <View style={[styles.data]}>
+                        <Text style={{backgroundColor: 'transparent', marginLeft: 10, top: 10, fontWeight: '500'}}>#{this.state.group}</Text>
+                        <Button textStyle={[styles.buttonText, {color: '#000', fontSize: 12, fontWeight: '500'}]} style={[styles.button, {borderColor: '#000', borderRadius: 3, width: 60, height: 22, borderWidth: 1, padding: 0, marginBottom: 0}]} onPress={this.stopRouting}>
+                            STOP
+                        </Button>
+                    </View>
                     <View style={[styles.details]}>
                         <View style={[styles.data]}>
                             <Text style={[styles.dataItem, styles.dataItemUser]}>USER</Text>
@@ -139,9 +142,6 @@ class App extends Component {
 
         return (
             <View style={[styles.bottom]}>
-                <Button textStyle={[styles.buttonText]} style={[styles.button, {width: 40, height: 40, borderWidth: 1, padding: 0, marginBottom: 0, alignSelf: 'flex-end'}]} onPress={this.stopRouting}>
-                    <Icon name="location-arrow" size={25} color="#000" />
-                </Button>
                 <Button textStyle={styles.buttonText} style={styles.button} onPress={this.joinGroup}>JOIN GROUP</Button>
             </View>
         );
@@ -399,30 +399,26 @@ const styles = StyleSheet.create({
         flex: 1
     },
     button: {
-        margin: 10,
+        margin: 8,
         padding: 10,
-        borderWidth: 2,
-        borderRadius: 4,
-        borderColor: '#000',
+        borderWidth: 1.5,
+        borderRadius: 3,
+        borderColor: '#444',
         backgroundColor: 'rgba(255,255,255,.95)'
     },
     buttonText: {
-        color: '#000',
+        color: '#444',
         fontSize: 18
     },
     details: {
-        margin: 10,
+        margin: 8,
         padding: 15,
-        borderRadius: 5,
-        borderWidth: 2,
-        borderColor: '#3498db',
+        borderRadius: 3,
+        borderWidth: 1.5,
+        borderColor: '#444',
         backgroundColor: 'rgba(255,255,255,.95)',
         alignItems: 'center',
         justifyContent: 'center'
-    },
-    user: {
-        color: '#3498db',
-        fontSize: 22
     },
     data: {
         flexDirection: 'row',
