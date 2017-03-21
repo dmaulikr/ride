@@ -127,6 +127,7 @@ android {
 }
 
 dependencies {
+    compile project(':react-native-vector-icons')
     compile project(':react-native-code-push')
     compile 'com.google.android.gms:play-services-base'
     compile 'com.google.android.gms:play-services-maps'

@@ -1,11 +1,12 @@
 import React, { Component } from 'react';
 import { Alert, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 
+import Icon from 'react-native-vector-icons/FontAwesome';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import SocketIOClient from 'socket.io-client';
 import haversine from 'haversine';
-import shortid from 'shortid';
 
+import { Button } from 'app/components/button';
 import { mapStyle } from 'app/map';
 
 const regionUS = {
@@ -61,7 +62,7 @@ class App extends Component {
                     {this.getPaths()}
                 </MapView>
                 <View style={[styles.container]} pointerEvents='box-none'>
-                    <Text style={[styles.debug]}>v101</Text>
+                    <Text style={[styles.debug]}>v095</Text>
                     {this.getBottom()}
                 </View>
             </View>
@@ -109,29 +110,39 @@ class App extends Component {
     getBottom = () => {
         if (this.state.started) {
             return (
-                <View style={[styles.details]}>
-                    <Text style={[styles.user, {marginBottom: 10}]} onPress={this.stopRouting}>STOP</Text>
-                    <View style={[styles.data]}>
-                        <Text style={[styles.dataItem, styles.dataItemUser]}>USER</Text>
-                        <Text style={styles.dataItem}>SPEED</Text>
-                        <Text style={styles.dataItem}>DISTANCE</Text>
-                        <Text style={styles.dataItem}>TIME</Text>
+                <View style={[styles.bottom]}>
+                    <Button textStyle={[styles.buttonText, {fontSize: 12}]} style={[styles.button, {width: 60, height: 22, borderWidth: 1, padding: 0, marginBottom: 0}]} onPress={this.stopRouting}>
+                        STOP
+                    </Button>
+                    <View style={[styles.details]}>
+                        <View style={[styles.data]}>
+                            <Text style={[styles.dataItem, styles.dataItemUser]}>USER</Text>
+                            <Text style={styles.dataItem}>SPEED</Text>
+                            <Text style={styles.dataItem}>DISTANCE</Text>
+                            <Text style={styles.dataItem}>TIME</Text>
+                        </View>
+                        {this.getUserStats()}
                     </View>
-                    {this.getUserStats()}
                 </View>
             )
         }
 
         // Resume Group Ride
         if (this.state.inGroup) {
-            <View style={[styles.details]}>
-                <Text style={styles.user} onPress={this.startRouting}>START</Text>
+            <View style={[styles.bottom]}>
+                <Button textStyle={[styles.buttonText]} style={[styles.button, {width: 40, height: 40, borderWidth: 1, padding: 0, marginBottom: 0}]} onPress={this.stopRouting}>
+                    <Icon name="location-arrow" size={25} color="#000" />
+                </Button>
+                <Button textStyle={styles.buttonText} style={styles.button} onPress={this.startRouting}>START</Button>
             </View>
         }
 
         return (
-            <View style={[styles.details]}>
-                <Text style={styles.user} onPress={this.joinGroup}>JOIN GROUP</Text>
+            <View style={[styles.bottom]}>
+                <Button textStyle={[styles.buttonText]} style={[styles.button, {width: 40, height: 40, borderWidth: 1, padding: 0, marginBottom: 0, alignSelf: 'flex-end'}]} onPress={this.stopRouting}>
+                    <Icon name="location-arrow" size={25} color="#000" />
+                </Button>
+                <Button textStyle={styles.buttonText} style={styles.button} onPress={this.joinGroup}>JOIN GROUP</Button>
             </View>
         );
     }
@@ -165,8 +176,8 @@ class App extends Component {
     // Connect to server
     startConn = () => {
         window.navigator.userAgent = "react-native";
-        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
-        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
+        this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
+        // this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
         this.socket.on('connect', data => {
             console.log('Socket connection started!');
         });
@@ -384,9 +395,23 @@ const styles = StyleSheet.create({
         backgroundColor: '#ffffff',
         borderColor: '#3498db',
     },
+    bottom: {
+        flex: 1
+    },
+    button: {
+        margin: 10,
+        padding: 10,
+        borderWidth: 2,
+        borderRadius: 4,
+        borderColor: '#000',
+        backgroundColor: 'rgba(255,255,255,.95)'
+    },
+    buttonText: {
+        color: '#000',
+        fontSize: 18
+    },
     details: {
-        flex: 1,
-        margin: 8,
+        margin: 10,
         padding: 15,
         borderRadius: 5,
         borderWidth: 2,
@@ -409,7 +434,7 @@ const styles = StyleSheet.create({
         color: '#444',
         fontWeight: '500',
         textAlign: 'center',
-        marginBottom: 8
+        marginVertical: 4
     },
     dataItemUser: {
         flex: 1.25
