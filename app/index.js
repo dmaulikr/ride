@@ -1,13 +1,14 @@
 import React, { Component } from 'react';
-import { Alert, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { Alert, Text, View, PanResponder } from 'react-native';
 
-import Icon from 'react-native-vector-icons/FontAwesome';
+import Icon from 'react-native-vector-icons/Ionicons';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import SocketIOClient from 'socket.io-client';
 import haversine from 'haversine';
 
 import { Button } from 'app/components/button';
 import { mapStyle } from 'app/map';
+import { styles } from 'app/styles';
 
 const regionUS = {
     latitude: 36.8282,
@@ -16,11 +17,11 @@ const regionUS = {
     longitudeDelta: 40
 };
 
-const startState = {
-    initialPosition: null,
+const defaultState = {
     panning: false,
+    initialPosition: null,
     showTraffic: false,
-    inGroup: false,
+    inGroup: true,
 
     // while moving
     started: false,
@@ -28,49 +29,63 @@ const startState = {
     position: null,
     distance: 0,
     users: {},
-    count: 1,
     path: [], // paths for current user
     icons: [], // markers for all users
+
     color: '#3498db', // user default color
     group: 'knightrider',
     pass: '2006',
     name: 'Himanshu'
 };
 
-// App Starts Here
+
 class App extends Component {
+    /**
+     * Set the default state
+     */
     constructor(props) {
         super(props);
 
-        // Default State
-        this.state = startState;
+        this.state = defaultState;
     }
 
-    componentDidMount() {
+    /**
+     * Get everything ready for app
+     * @return undefined
+     */
+    componentWillMount() {
+        this.addEvents();
         this.startConn();
         this.loadMap();
     }
 
-    // Render App
+    /**
+     * Render App Display
+     * @return undefined
+     */
     render() {
         return (
-            <View style={{flex: 1}}>
-                <MapView ref={ref => {this.map = ref}} style={[styles.map]} showsPointsOfInterest={false}
+            <View style={styles.app}>
+                <MapView ref={ref => {this.map = ref}} style={[styles.map]} {...this._panResponder.panHandlers}
                     provider={PROVIDER_GOOGLE} customMapStyle={mapStyle} showsTraffic={this.state.showTraffic}
-                    onPanDrag={this.panningMap} onPress={this.panningMap} initialRegion={regionUS}>
+                    showsPointsOfInterest={false} initialRegion={regionUS}>
                     {this.getMarkers()}
                     {this.getPaths()}
                 </MapView>
                 <View style={[styles.container]} pointerEvents='box-none'>
-                    <Text style={[styles.debug]}>v095</Text>
+                    <Text style={[styles.version]}>v095</Text>
                     {this.getBottom()}
                 </View>
             </View>
         )
     }
 
-    // Get Markers to Draw
+    /**
+     * Markers to draw on map
+     * @return undefined
+     */
     getMarkers = () => {
+        // Not in a ride, display location marker
         if (this.state.initialPosition && !this.state.started) {
             return (
                 <MapView.Marker coordinate={this.state.initialPosition.coords} anchor={{x: .60, y: .60}}>
@@ -79,6 +94,7 @@ class App extends Component {
             )
         }
 
+        // In a ride, display all markers
         this.markers = [];
         Object.entries(this.state.users).forEach((data, key) => {
             var serverId = data[0],
@@ -93,7 +109,10 @@ class App extends Component {
         return this.markers;
     }
 
-    // Get the path of all users
+    /**
+     * Get paths to draw on map
+     * @return undefined
+     */
     getPaths = () => {
         var paths = [];
         Object.entries(this.state.users).forEach((data, key) => {
@@ -106,16 +125,22 @@ class App extends Component {
         return paths;
     }
 
-    // Bottom View
+
+    /**
+     * Render bottom view that goes on top of map
+     * @return undefined
+     */
     getBottom = () => {
+        // In a ride, display markers, speed, etcc for all users
         if (this.state.started) {
             return (
-                <View style={[styles.bottom]}>
-                    <View style={[styles.data]}>
-                        <Text style={{backgroundColor: 'transparent', marginLeft: 10, top: 10, fontWeight: '500'}}>#{this.state.group}</Text>
-                        <Button textStyle={[styles.buttonText, {color: '#000', fontSize: 12, fontWeight: '500'}]} style={[styles.button, {borderColor: '#000', borderRadius: 3, width: 60, height: 22, borderWidth: 1, padding: 0, marginBottom: 0}]} onPress={this.stopRouting}>
-                            STOP
-                        </Button>
+                <View style={[styles.bottom]} pointerEvents='box-none'>
+                    {this.state.panning &&
+                    <Icon style={[styles.locationButton]} name="ios-locate-outline" size={32} color="#444" onPress={this.stopPanning} />
+                    }
+                    <View style={[styles.data]} pointerEvents='box-none'>
+                        <Text style={[styles.groupName]}>#{this.state.group}</Text>
+                        <Button textStyle={[styles.buttonText, styles.stopText]} style={[styles.button, styles.stopButton]} onPress={this.stopRouting}>STOP</Button>
                     </View>
                     <View style={[styles.details]}>
                         <View style={[styles.data]}>
@@ -130,24 +155,28 @@ class App extends Component {
             )
         }
 
-        // Resume Group Ride
+        // Resume group ride, if previously joined
         if (this.state.inGroup) {
-            <View style={[styles.bottom]}>
-                <Button textStyle={[styles.buttonText]} style={[styles.button, {width: 40, height: 40, borderWidth: 1, padding: 0, marginBottom: 0}]} onPress={this.stopRouting}>
-                    <Icon name="location-arrow" size={25} color="#000" />
-                </Button>
+            <View style={[styles.bottom]} pointerEvents='box-none'>
                 <Button textStyle={styles.buttonText} style={styles.button} onPress={this.startRouting}>START</Button>
             </View>
         }
 
+        // Default: Not in a ride, show join
         return (
-            <View style={[styles.bottom]}>
+            <View style={[styles.bottom]} pointerEvents='box-none'>
+                {this.state.panning &&
+                <Icon style={[styles.locationButton]} name="ios-locate-outline" size={32} color="#444" onPress={this.stopPanning} />
+                }
                 <Button textStyle={styles.buttonText} style={styles.button} onPress={this.joinGroup}>JOIN GROUP</Button>
             </View>
         );
     }
 
-    // User Stats
+    /**
+     * Display user details, stats etc
+     * @return undefined
+     */
     getUserStats = () => {
         if (!this.state.position) {
             return null;
@@ -173,11 +202,21 @@ class App extends Component {
 
     ////////////////// Custom Functions
 
+    // Add Events
+    addEvents = () => {
+        this._panResponder = PanResponder.create({
+            onMoveShouldSetPanResponder:(evt, gestureState) => true,
+            onPanResponderMove: (evt, gestureState) => {
+                this.panningMap();
+            }
+        });
+    }
+
     // Connect to server
     startConn = () => {
         window.navigator.userAgent = "react-native";
-        this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
-        // this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
+        // this.socket = SocketIOClient('http://10.0.1.51:8080', {jsonp: false});
+        this.socket = SocketIOClient('ws://ride-apph.rhcloud.com:8000', {jsonp: false});
         this.socket.on('connect', data => {
             console.log('Socket connection started!');
         });
@@ -255,8 +294,7 @@ class App extends Component {
                 // Not in a group ride yet
                 if (!this.state.started) {
                     this.setState({
-                        initialPosition: position,
-                        count: this.state.count + 1
+                        initialPosition: position
                     });
 
                     if (!this.state.panning) {
@@ -279,7 +317,6 @@ class App extends Component {
                     }));
                     this.setState({
                         position: position,
-                        count: this.state.count + 1,
                         distance: this.state.distance + this.calcDistance(position.coords),
                         path: [...this.state.path, position.coords]
                     });
@@ -316,7 +353,7 @@ class App extends Component {
     // Drop Group Ride
     stopRouting = () => {
         this.socket.emit('stop_location', 'stop');
-        this.setState(startState);
+        this.setState(defaultState);
     }
 
     // Get GPS Accuracy
@@ -359,6 +396,10 @@ class App extends Component {
 
     // Map Move
     panningMap = (region) => {
+        if (this.state.panning) {
+            return;
+        }
+
         this.setState({panning: true})
     }
 
@@ -367,74 +408,5 @@ class App extends Component {
         this.setState({panning: false})
     }
 }
-
-const styles = StyleSheet.create({
-    debug: {
-        position: 'absolute',
-        bottom: 15,
-        right: 15,
-        fontSize: 10,
-        color: '#000',
-        backgroundColor: 'transparent'
-    },
-    container: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        justifyContent: 'center'
-    },
-    map: {
-        flex: 1,
-        ...StyleSheet.absoluteFillObject
-    },
-    circle: {
-        height: 20,
-        width: 20,
-        borderRadius: 20,
-        borderWidth: 3,
-        backgroundColor: '#ffffff',
-        borderColor: '#3498db',
-    },
-    bottom: {
-        flex: 1
-    },
-    button: {
-        margin: 8,
-        padding: 10,
-        borderWidth: 1.5,
-        borderRadius: 3,
-        borderColor: '#444',
-        backgroundColor: 'rgba(255,255,255,.95)'
-    },
-    buttonText: {
-        color: '#444',
-        fontSize: 18
-    },
-    details: {
-        margin: 8,
-        padding: 15,
-        borderRadius: 3,
-        borderWidth: 1.5,
-        borderColor: '#444',
-        backgroundColor: 'rgba(255,255,255,.95)',
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    data: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-    },
-    dataItem: {
-        flex: 1,
-        color: '#444',
-        fontWeight: '500',
-        textAlign: 'center',
-        marginVertical: 4
-    },
-    dataItemUser: {
-        flex: 1.25
-    },
-});
 
 module.exports = App;
